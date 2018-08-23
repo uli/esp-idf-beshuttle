@@ -19,6 +19,7 @@
 #include <rom/ets_sys.h>
 #include <assert.h>
 
+#if 0
 /* Because malloc/free can happen inside an ISR context,
    we need to use portmux spinlocks here not RTOS mutexes */
 #define MULTI_HEAP_LOCK(PLOCK) do {               \
@@ -33,6 +34,17 @@
             portEXIT_CRITICAL((portMUX_TYPE *)(PLOCK));     \
         }                                                   \
     } while(0)
+#else
+/* BASIC Engine Shuttle hack: Because using portENTER_CRITICAL() messes up the video
+   timing by disabling interrupts or whatever, we cannot use it lest we want to
+   have the display collapse every time memory is allocated. We instead use
+   vPortCPUAcquireMutex(), which does not mess with the interrupt state and
+   is hopefully safe enough for our use case. (I have yet to see any device drivers
+   using the heap allocator...)
+ */
+#define MULTI_HEAP_LOCK(PLOCK) do { if (PLOCK) vPortCPUAcquireMutex( PLOCK ); } while(0)
+#define MULTI_HEAP_UNLOCK(PLOCK) do { if (PLOCK) vPortCPUReleaseMutex( PLOCK ); } while(0)
+#endif
 
 /* Not safe to use std i/o while in a portmux critical section,
    can deadlock, so we use the ROM equivalent functions. */
